@@ -5,7 +5,18 @@
 ;; 
 ;; TODO about piki
 ;; copy from wiliki-mode.el
+;; 
+;; piki
+;; * footnote <a href="#name" title=contents>
+;;    like hatena?
+;;    Text (((footnote contents))) ->
+;;  -> Text<a href="#footnote-1" title="footnote contents">*1</a>
 
+;; * strong, em 
+;;  '''strong''' ''em''
+
+;; * macro ${[A-Z]+} or $[A-Z]+
+;;
 
 ;;; Code:
 
@@ -128,6 +139,12 @@
 
 	("^#.*" . font-lock-comment-face)
 
+	;; <pre>
+	("^\\(>|\\)\n\\(\\(?:.*\n\\)*?\\)\\(|<\\)$"
+	 (1 font-lock-keyword-face)
+	 (2 piki-verbatim-face t)	; override faces
+	 (3 font-lock-keyword-face))
+
 	;; <hr>
 	("^=.*$" . piki-bold-face)
 
@@ -197,11 +214,7 @@
 	("^\\(}\\)"
 	 (1 font-lock-keyword-face))
 
-	;; <pre>
-	("^\\(>|\\)\n\\(\\(.*\n\\)*?\\)\\(|<\\)$"
-	 (1 font-lock-keyword-face)
-	 (2 piki-verbatim-face t)	; override faces
-	 (4 font-lock-keyword-face))))
+        ))
 
 (define-derived-mode piki-mode text-mode "Piki"
   "Major mode to edit and commit Piki page.
