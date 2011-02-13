@@ -16,7 +16,10 @@
 ;;  '''strong''' ''em''
 
 ;; * macro ${[A-Z]+} or $[A-Z]+
-;;
+;;  like following.
+;;   piki -MMACRO=VALUE template index.piki 
+
+;; * line continuation like shell script.
 
 ;;; Code:
 
