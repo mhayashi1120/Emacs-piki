@@ -103,29 +103,32 @@
 
 (defun piki-font-lock--pre ()
   ;; TODO adhoc solution.
-  `((lambda (end-region)
-      (let ((inhibit-read-only t)
-            (flg (buffer-modified-p)))
-        (unwind-protect
-            (save-excursion
-              (let ((before (point-min)))
-                (goto-char (point-min))
-                (while (re-search-forward "^>|$" end-region t)
-                  (forward-line 1)
-                  (let ((start (point))
-                        (end (or (and (re-search-forward "^|<$" nil t)
-                                      (progn
-                                        (forward-line 0)
-                                        (point)))
-                                 end-region)))
-                    ;;TODO
-                    (put-text-property start end 'face 'piki-verbatim-face)
-                    (put-text-property start end 'font-lock-multiline t)
-                    (remove-text-properties before start '(fontified face))
-                    (setq before end)))
-                (remove-text-properties before end-region '(fontified face))))
-          (set-buffer-modified-p flg)))
-      nil)))
+  `(,(byte-compile
+      (lambda (end-region)
+        (let ((inhibit-read-only t)
+              (flg (buffer-modified-p)))
+          (unwind-protect
+              (save-excursion
+                (let ((before (or (re-search-backward "^>|$" nil t)
+                                  (point-min))))
+                  (goto-char (point-min))
+                  (while (re-search-forward "^>|$" end-region t)
+                    (forward-line 1)
+                    (let ((start (point))
+                          (end (or (and (re-search-forward "^|<$" nil t)
+                                        (progn
+                                          (forward-line 0)
+                                          (point)))
+                                   end-region)))
+                      (put-text-property start end 'face 'piki-verbatim-face)
+                      (put-text-property start end 'font-lock-multiline t)
+                      (remove-text-properties before start '(fontified nil))
+                      (setq before end)))
+                  ;;TODO
+                  (when (< (point-min) before)
+                    (remove-text-properties before end-region '(fontified nil)))))
+            (set-buffer-modified-p flg)))
+        nil))))
 
 (defun piki-fontify-later (face)
   `(ignore nil (setq piki-font-lock-emphasis-regions
