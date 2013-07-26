@@ -93,7 +93,12 @@
 
 (defvar piki-font-lock-emphasis-regions nil)
 
+(defvar-local piki-change-buffer-time nil)
+
 ;; TODO execute piki (after-save-hook?)
+
+(defun piki-after-change-buffer (start end old-len)
+  (setq piki-change-buffer-time (float-time)))
 
 (defun piki-font-lock-init ()
   (set (make-local-variable 'piki-font-lock-emphasis-regions) nil)
@@ -101,33 +106,39 @@
       (setq piki-font-lock-emphasis-regions nil)
       nil)))
 
+(defvar-local piki-font-lock-pre-time nil)
+
 (defun piki-font-lock--pre ()
   ;; TODO adhoc solution.
   `(,(byte-compile
       (lambda (end-region)
-        (let ((inhibit-read-only t)
-              (flg (buffer-modified-p)))
-          (unwind-protect
-              (save-excursion
-                (let ((before (or (re-search-backward "^>|$" nil t)
-                                  (point-min))))
-                  (goto-char (point-min))
-                  (while (re-search-forward "^>|$" end-region t)
-                    (forward-line 1)
-                    (let ((start (point))
-                          (end (or (and (re-search-forward "^|<$" nil t)
-                                        (progn
-                                          (forward-line 0)
-                                          (point)))
-                                   end-region)))
-                      (put-text-property start end 'face 'piki-verbatim-face)
-                      (put-text-property start end 'font-lock-multiline t)
-                      (remove-text-properties before start '(fontified nil))
-                      (setq before end)))
-                  ;;TODO
-                  (when (< (point-min) before)
-                    (remove-text-properties before end-region '(fontified nil)))))
-            (set-buffer-modified-p flg)))
+        (when (or (null piki-font-lock-pre-time)
+                  (null piki-change-buffer-time)
+                  (< piki-change-buffer-time piki-font-lock-pre-time))
+          (let ((inhibit-read-only t)
+                (flg (buffer-modified-p)))
+            (unwind-protect
+                (save-excursion
+                  (let ((before (or (re-search-backward "^>|$" nil t)
+                                    (point-min))))
+                    (goto-char (point-min))
+                    (while (re-search-forward "^>|$" end-region t)
+                      (forward-line 1)
+                      (let ((start (point))
+                            (end (or (and (re-search-forward "^|<$" nil t)
+                                          (progn
+                                            (forward-line 0)
+                                            (point)))
+                                     end-region)))
+                        (put-text-property start end 'face 'piki-verbatim-face)
+                        (put-text-property start end 'font-lock-multiline t)
+                        (remove-text-properties before start '(fontified nil))
+                        (setq before end)))
+                    ;;TODO
+                    (when (< (point-min) before)
+                      (remove-text-properties before end-region '(fontified nil)))))
+              (set-buffer-modified-p flg)
+              (setq piki-font-lock-pre-time (float-time)))))
         nil))))
 
 (defun piki-fontify-later (face)
@@ -280,6 +291,7 @@
   (set (make-local-variable 'font-lock-defaults)
        '(piki-font-lock-keywords t t))
   (set (make-local-variable 'font-lock-multiline) t)
+  (add-hook 'after-change-functions 'piki-after-change-buffer nil t)
   (setq major-mode 'piki-mode)
   (setq mode-name "Piki")
   (set (make-local-variable 'comment-start) "#")
