@@ -1,5 +1,9 @@
 ;;; piki-mode.el --- piki mode
 
+;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
+;; Keywords:
+;; Emacs: GNU Emacs
+;; Package-Requires: ()
 
 ;;; Commentary:
 ;; 
@@ -100,7 +104,7 @@
 (defun piki-after-change-buffer (start end old-len)
   (setq piki-change-buffer-time (float-time)))
 
-(defun piki-font-lock-init ()
+(defun piki-font-lock--init ()
   (set (make-local-variable 'piki-font-lock-emphasis-regions) nil)
   '((lambda (end)
       (setq piki-font-lock-emphasis-regions nil)
@@ -108,38 +112,38 @@
 
 (defvar-local piki-font-lock-pre-time nil)
 
-(defun piki-font-lock--pre ()
-  ;; TODO adhoc solution.
-  `(,(byte-compile
-      (lambda (end-region)
-        (when (or (null piki-font-lock-pre-time)
-                  (null piki-change-buffer-time)
-                  (< piki-change-buffer-time piki-font-lock-pre-time))
-          (let ((inhibit-read-only t)
-                (flg (buffer-modified-p)))
-            (unwind-protect
-                (save-excursion
-                  (let ((before (or (re-search-backward "^>|$" nil t)
-                                    (point-min))))
-                    (goto-char (point-min))
-                    (while (re-search-forward "^>|$" end-region t)
-                      (forward-line 1)
-                      (let ((start (point))
-                            (end (or (and (re-search-forward "^|<$" nil t)
-                                          (progn
-                                            (forward-line 0)
-                                            (point)))
-                                     end-region)))
-                        (put-text-property start end 'face 'piki-verbatim-face)
-                        (put-text-property start end 'font-lock-multiline t)
-                        (remove-text-properties before start '(fontified nil))
-                        (setq before end)))
-                    ;;TODO
-                    (when (< (point-min) before)
-                      (remove-text-properties before end-region '(fontified nil)))))
-              (set-buffer-modified-p flg)
-              (setq piki-font-lock-pre-time (float-time)))))
-        nil))))
+(defun piki-font-lock--pre (end-region)
+  (let ((inhibit-read-only t)
+        (flg (buffer-modified-p)))
+    (unwind-protect
+        (save-excursion
+          (goto-char (point-min))
+          (let ((before (point))
+                (changed nil))
+            (while (re-search-forward "^>|$" end-region t)
+              (forward-line 1)
+              (let ((start (point))
+                    (end (or (and (re-search-forward "^|<$" nil t)
+                                  (progn
+                                    (forward-line 0)
+                                    (point)))
+                             (point-max))))
+                (when (text-property-any start end 'font-lock-multiline nil)
+                  (add-text-properties
+                   start end
+                   '(font-lock-multiline
+                     t
+                     font-lock-face
+                     piki-verbatim-face
+                     font-lock-fontified
+                     t))
+                  (setq changed t))
+                (when (text-property-any before start 'font-lock-multiline t)
+                  (setq changed (remove-text-properties
+                                 before start '(font-lock-multiline t))))
+                (setq before end)))
+            changed))
+      (set-buffer-modified-p flg))))
 
 (defun piki-fontify-later (face)
   `(ignore nil (setq piki-font-lock-emphasis-regions
@@ -185,10 +189,15 @@
 
 ;;TODO move to defvar form
 (setq piki-font-lock-keywords
-      `((eval . (piki-font-lock-init))
+      `((eval . (piki-font-lock--init))
 
+        ;;TODO
         ;; first of all, fontify `pre' tag
-        (eval . (piki-font-lock--pre))
+        piki-font-lock--pre
+
+        ;; <pre>
+        ("^\\(>|\\||<\\)$"
+         (1 font-lock-keyword-face))
 
         ("^#.*" . font-lock-comment-face)
 
@@ -196,7 +205,8 @@
         ("^=.*$" . piki-bold-face)
 
         ;; <ul> and <ol>
-        ("^\\([-+]+\\)" (1 font-lock-function-name-face))
+        ("^\\([-+]+\\)"
+         (1 font-lock-function-name-face))
 
         ;; <table>
         ("^\\(|\\)\\(.*?\\)\\(|\\)$"
@@ -272,10 +282,6 @@
          (1 font-lock-keyword-face)
          (2 font-lock-function-name-face))
         ("^\\(}\\)"
-         (1 font-lock-keyword-face))
-
-        ;; <pre>
-        ("^\\(>|\\||<\\)$"
          (1 font-lock-keyword-face))
 
         ,(piki-font-lock-fontify-delayed-regions)
