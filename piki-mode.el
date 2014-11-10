@@ -134,9 +134,7 @@
                    '(font-lock-multiline
                      t
                      font-lock-face
-                     piki-verbatim-face
-                     font-lock-fontified
-                     t))
+                     piki-verbatim-face))
                   (setq changed t))
                 (when (text-property-any before start 'font-lock-multiline t)
                   (setq changed (remove-text-properties
