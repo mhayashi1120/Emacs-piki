@@ -119,7 +119,32 @@
         (save-excursion
           (goto-char (point-min))
           (let ((before (point))
-                (changed nil))
+                (changed nil)
+                (remover
+                 (lambda (start end)
+                   (when (or (text-property-not-all start end 'font-lock-multiline nil)
+                             (text-property-not-all start end 'font-lock-face nil))
+                     (remove-text-properties
+                      start end
+                      '(font-lock-multiline
+                        t
+                        font-lock-face nil))
+                     ;; FIXME explicitly return nil
+                     ;; why remove-text-properties no effect??
+                     ;; `remove-text-properties' return t which means that is
+                     ;; successfully removed property. However `text-property-not-all'
+                     ;; is  continuously  return t.
+                     nil)))
+                (appender
+                 (lambda (start end)
+                   (when (text-property-not-all start end 'font-lock-multiline t)
+                     (add-text-properties
+                      start end
+                      '(font-lock-multiline
+                        t
+                        font-lock-face
+                        piki-verbatim-face))
+                     t))))
             (while (re-search-forward "^>|$" end-region t)
               (forward-line 1)
               (let ((start (point))
@@ -128,18 +153,13 @@
                                     (forward-line 0)
                                     (point)))
                              (point-max))))
-                (when (text-property-any start end 'font-lock-multiline nil)
-                  (add-text-properties
-                   start end
-                   '(font-lock-multiline
-                     t
-                     font-lock-face
-                     piki-verbatim-face))
+                (when (funcall remover before start)
                   (setq changed t))
-                (when (text-property-any before start 'font-lock-multiline t)
-                  (setq changed (remove-text-properties
-                                 before start '(font-lock-multiline t))))
+                (when (funcall appender start end)
+                  (setq changed t))
                 (setq before end)))
+            (when (funcall remover before (point-max))
+              (setq changed t))
             changed))
       (set-buffer-modified-p flg))))
 
