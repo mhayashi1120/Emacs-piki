@@ -1,3 +1,6 @@
+piki-mode
+==========
+
 * piki-mode is editing mode for piki text.
 
 piki command can be downloaded from following url
