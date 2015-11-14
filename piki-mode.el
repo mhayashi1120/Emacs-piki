@@ -98,109 +98,36 @@
   '((t (:italic t)))
   "Face for Piki italic texts.")
 
-(defvar piki-header-1-face 'piki-header-1-face)
-(defvar piki-header-2-face 'piki-header-2-face)
-(defvar piki-header-3-face 'piki-header-3-face)
-(defvar piki-header-4-face 'piki-header-4-face)
-(defvar piki-header-5-face 'piki-header-5-face)
-(defvar piki-link-face 'piki-link-face)
-(defvar piki-table-border-face 'piki-table-border-face)
-(defvar piki-table-rule-face 'piki-table-rule-face)
-(defvar piki-verbatim-face 'piki-verbatim-face)
-(defvar piki-bold-face 'piki-bold-face)
-(defvar piki-italic-face 'piki-italic-face)
-
-(defvar piki-font-lock-emphasis-regions nil)
-
-(defvar-local piki-change-buffer-time nil)
-
-;; TODO execute piki (after-save-hook?)
-
-(defun piki-after-change-buffer (start end old-len)
-  (setq piki-change-buffer-time (float-time)))
-
-(defun piki-font-lock--init ()
-  (set (make-local-variable 'piki-font-lock-emphasis-regions) nil)
-  '((lambda (end)
-      (setq piki-font-lock-emphasis-regions nil)
-      nil)))
-
-(defvar-local piki-font-lock-pre-time nil)
-
-(defun piki-font-lock--pre (end-region)
-  (let ((inhibit-read-only t)
-        (flg (buffer-modified-p)))
-    (unwind-protect
-        (save-excursion
-          (goto-char (point-min))
-          (let ((before (point))
-                (changed nil)
-                (remover
-                 (lambda (start end)
-                   (when (or (text-property-not-all start end 'font-lock-multiline nil)
-                             (text-property-not-all start end 'font-lock-face nil))
-                     (remove-text-properties
-                      start end
-                      '(font-lock-multiline
-                        t
-                        font-lock-face nil))
-                     ;; FIXME explicitly return nil
-                     ;; why remove-text-properties no effect??
-                     ;; `remove-text-properties' return t which means that is
-                     ;; successfully removed property. However `text-property-not-all'
-                     ;; is  continuously  return t.
-                     nil)))
-                (appender
-                 (lambda (start end)
-                   (when (text-property-not-all start end 'font-lock-multiline t)
-                     (add-text-properties
-                      start end
-                      '(font-lock-multiline
-                        t
-                        font-lock-face
-                        piki-verbatim-face))
-                     t))))
-            (while (re-search-forward "^>|$" nil t)
-              (forward-line 1)
-              (let ((start (point))
-                    (end (or (and (re-search-forward "^|<$" nil t)
-                                  (progn
-                                    (forward-line 0)
-                                    (point)))
-                             (point-max))))
-                (when (funcall remover before start)
-                  (setq changed t))
-                (when (funcall appender start end)
-                  (setq changed t))
-                (setq before end)))
-            (when (funcall remover before (point-max))
-              (setq changed t))
-            changed))
-      (set-buffer-modified-p flg))))
-
-(defun piki-fontify-later (face)
-  `(ignore nil (setq piki-font-lock-emphasis-regions
-                     (cons (list (match-data) ,face)
-                           piki-font-lock-emphasis-regions))))
-
-(defun piki-font-lock-fontify-delayed-regions ()
-  '((lambda (end)
-      (if piki-font-lock-emphasis-regions
-          (let* ((item (car piki-font-lock-emphasis-regions))
-                 (match (nth 0 item)))
-            (set-match-data match)
-            (goto-char (match-end 0))
-            (match-beginning 0))))
-    (2 (prog1
-           (nth 1 (car piki-font-lock-emphasis-regions))
-         (setq piki-font-lock-emphasis-regions
-               (cdr piki-font-lock-emphasis-regions)))
-       append)))
-
-(defun piki-font-lock-matcher (regexp)
-  `(lambda (end)
-     (piki-font-lock-search-no-face ,regexp end t)))
-(put 'piki-font-lock-matcher 'lisp-indent-function 1)
+(defun piki-font-lock--pre-matcher ()
+  (lambda (limit)
+    (let (start end
+                start-tag-beg start-tag-end
+                end-tag-beg end-tag-end)
+      (cond
+       ((not (re-search-forward "^>|$" limit t))
+        nil)
+       (t
+        (setq start-tag-beg (match-beginning 0)
+              start-tag-end (match-end 0))
+        (setq start (point-at-bol))
+        (cond
+         ((re-search-forward "^|<$" nil t)
+          (setq end (point-at-eol))
+          (setq end-tag-beg (match-beginning 0)
+                end-tag-end (match-end 0)))
+         (t
+          (with-silent-modifications
+            (remove-text-properties (point) (point-max) '(fontified t)))
+          (goto-char (point-max))
+          (setq end (point-max))))
+        (set-match-data
+         (append
+          (list start end
+                start-tag-beg start-tag-end
+                (1+ start-tag-end) (if end-tag-beg (1- end-tag-beg) end))
+          (and end-tag-beg end-tag-end
+               (list end-tag-beg end-tag-end))))
+        t)))))
 
 (defvar piki-mode-map nil)
 
@@ -214,112 +141,113 @@
 
 (unless piki-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-l" 'piki-recenter-and-fontify)
+
     (setq piki-mode-map map)))
 
-(defvar piki-font-lock-keywords nil
+(defvar piki-font-lock-keywords
+  `(
+    (,(piki-font-lock--pre-matcher)
+     (1 font-lock-keyword-face)
+     (2 'piki-verbatim-face)
+     (3 font-lock-keyword-face nil t))
+
+    ("^#.*" . font-lock-comment-face)
+
+    ;; <hr>
+    ("^=.*$"
+     (0 'piki-bold-face))
+
+    ;; <ul> and <ol>
+    ("^\\([-+]+\\)"
+     (1 font-lock-function-name-face))
+
+    ;; <table>
+    ("^\\(|\\)\\(.*?\\)\\(|\\)$"
+     (1 'piki-table-border-face)
+     (3 'piki-table-border-face)
+     ("|"
+      (progn
+        (goto-char (match-beginning 2))
+        (match-end 2))
+      (goto-char (match-end 0))
+      (0 'piki-table-rule-face)))
+
+    ;; <dt>
+    ("^\\(\\?.*\\)"
+     (1 font-lock-keyword-face))
+
+    ;; <dd>
+    ("^\\(!.*\\)"
+     (1 font-lock-keyword-face))
+
+    ;; [url]
+    (,(concat
+       ;; line begining or not escaped "["
+       "\\(?:^\\|[^\\\\]\\)"
+       ;; beginning of bracket
+       "\\(\\[\\)"
+       ;; title string or double quoted string
+       piki--re-title
+       ;; separator of title and link
+       "[ \t]+"
+       ;; link
+       "\\(\\(?:\\\\\]\\|[^\]]\\)+\\)"
+       ;; end of bracket
+       "\\(\\\]\\)"
+       )
+     (1 font-lock-keyword-face)
+     (2 font-lock-reference-face)
+     (3 'piki-link-face)
+     (4 font-lock-keyword-face))
+
+    ;; <img>
+    (,(concat
+       "^\\(@\\)"
+       "[\s\t]+"
+       "\\(?:"
+       piki--re-title
+       "[\s\t]+"
+       ;; url
+       "\\([^s\t\n]+\\)"
+       "\\)?"
+       )
+     (1 font-lock-keyword-face)
+     (2 font-lock-reference-face nil t)
+     (3 'piki-link-face nil t))
+
+    (,(concat
+       "^\\(@@\\)"
+       "[\s\t]+"
+       "\\(?:"
+       piki--re-title
+       "[\s\t]+"
+       ;; url
+       "\\([^\s\t\n]+\\)"
+       "[\s\t]+"
+       ;; refurl
+       "\\([^\s\t\n]+\\)"
+       "\\)?"
+       )
+     (1 font-lock-keyword-face)
+     (2 font-lock-reference-face nil t)
+     (3 'piki-link-face nil t)
+     (4 'piki-link-face nil t))
+           
+    ;; <h2>, <h3>, <h4>, ...
+    ("^\\(\\*+\\).*"
+     (0 (let* ((len (- (match-end 1) (match-beginning 1)))
+               (face-name (format "piki-header-%d-face" (min len 5))))
+          (intern face-name))))
+
+    ;; <div>
+    ("^\\({\\)\\(.*\\)"
+     (1 font-lock-keyword-face)
+     (2 font-lock-function-name-face))
+    ("^\\(}\\)"
+     (1 font-lock-keyword-face))
+
+    )
   "Default expressions to highlight in Piki modes.")
-
-;;TODO move to defvar form
-(setq piki-font-lock-keywords
-      `((eval . (piki-font-lock--init))
-
-        ;;TODO
-        ;; first of all, fontify `pre' tag
-        piki-font-lock--pre
-
-        ;; <pre>
-        ("^\\(>|\\||<\\)$"
-         (1 font-lock-keyword-face))
-
-        ("^#.*" . font-lock-comment-face)
-
-        ;; <hr>
-        ("^=.*$" . piki-bold-face)
-
-        ;; <ul> and <ol>
-        ("^\\([-+]+\\)"
-         (1 font-lock-function-name-face))
-
-        ;; <table>
-        ("^\\(|\\)\\(.*?\\)\\(|\\)$"
-         (1 piki-table-border-face)
-         (3 piki-table-border-face)
-         ("|"
-          (progn
-            (goto-char (match-beginning 2))
-            (match-end 2))
-          (goto-char (match-end 0))
-          (0 piki-table-rule-face)))
-
-        ;; <dt>
-        ("^\\(\\?.*\\)"
-         (1 font-lock-keyword-face))
-
-        ;; <dd>
-        ("^\\(!.*\\)"
-         (1 font-lock-keyword-face))
-
-        ;; (,(piki-font-lock-matcher    ; <strong>
-        ;;       (concat "\\('''\\)\\([^'\n]?"
-        ;;            piki-any-char-regexp "*?\\)\\('''\\)"))
-        ;;  (1 font-lock-keyword-face)
-        ;;  ,(piki-fontify-later piki-bold-face)
-        ;;  (3 font-lock-keyword-face))
-        ;; (,(piki-font-lock-matcher    ; <em>
-        ;;       (concat "\\(''\\)\\([^'\n]?" piki-any-char-regexp "*?\\)\\(''\\)"))
-        ;;  (1 font-lock-keyword-face)
-        ;;  ,(piki-fontify-later piki-italic-face)
-        ;;  (3 font-lock-keyword-face))
-
-        ;; [url]
-        (,(concat
-           ;; line begining or not escaped "["
-           "\\(?:^\\|[^\\\\]\\)"
-           ;; beginning of bracket
-           "\\(\\[\\)"
-           ;; title string or double quoted string
-           piki--re-title
-           ;; separator of title and link
-           "[ \t]+"
-           ;; link
-           "\\(\\(?:\\\\\]\\|[^\]]\\)+\\)"
-           ;; end of bracket
-           "\\(\\\]\\)"
-           )
-         (1 font-lock-keyword-face)
-         (2 font-lock-reference-face)
-         (3 piki-link-face)
-         (4 font-lock-keyword-face))
-
-        ;; <img>
-        (,(concat
-           "^@"
-           "[ \t]*"
-           piki--re-title
-           "[ \t]+"
-           "\\(.*\\)"
-           )
-         (1 font-lock-reference-face)
-         (2 piki-link-face))
-
-        ;; <h2>, <h3>, <h4>, ...
-        ("^\\(\\*+\\).*"
-         (0 (let* ((len (- (match-end 1) (match-beginning 1)))
-                   (face-name (format "piki-header-%d-face" (min len 5))))
-              (intern face-name))
-            keep))
-
-        ;; <div>
-        ("^\\({\\)\\(.*\\)"
-         (1 font-lock-keyword-face)
-         (2 font-lock-function-name-face))
-        ("^\\(}\\)"
-         (1 font-lock-keyword-face))
-
-        ,(piki-font-lock-fontify-delayed-regions)
-
-        ))
 
 ;;;###autoload
 (define-derived-mode piki-mode text-mode "Piki"
@@ -337,37 +265,6 @@
   (use-local-map piki-mode-map)
   (make-local-variable 'kill-buffer-hook)
   (run-hooks 'piki-mode-hook))
-
-(defun piki-font-lock-search-no-face (regexp &optional bound noerror face)
-  (or bound (setq bound (point-max)))
-  (let ((saved (point))
-        (move-to-beg-func (if face 'text-property-not-all 'text-property-any))
-        (move-to-end-func (if face 'text-property-any 'text-property-not-all))
-        found)
-    (while (and (not found)
-                (re-search-forward regexp bound t)) ; search roughly
-      (let* ((beg (or (funcall move-to-beg-func (match-beginning 0) bound
-                               'face face)
-                      bound))
-             (end (or (funcall move-to-end-func beg bound 'face face) bound)))
-        (if (and (< beg (match-beginning 0))
-                 (< (match-end 0) end))
-            (setq found (point))
-          (goto-char beg)
-          (if (re-search-forward regexp end 'move)
-              (setq found (point))))))
-    (or found
-        (cond ((null noerror) (error "search failed"))
-              ((eq noerror t) (goto-char saved) nil)
-              (t (goto-char bound) nil)))))
-
-(defun piki-recenter-and-fontify (&optional arg)
-  "Center point in window, redisplay frame, and fontify the current buffer
-if Font-Lock mode is enabled."
-  (interactive "P")
-  (recenter arg)
-  (if font-lock-mode
-      (font-lock-fontify-buffer)))
 
 (provide 'piki-mode)
 
