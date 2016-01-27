@@ -98,36 +98,47 @@
   '((t (:italic t)))
   "Face for Piki italic texts.")
 
-(defun piki-font-lock--pre-matcher ()
-  (lambda (limit)
-    (let (start end
-                start-tag-beg start-tag-end
-                end-tag-beg end-tag-end)
+(defface piki-classname-face
+  '((t (:inherit font-lock-function-name-face)))
+  "Face for Piki classname texts.")
+
+(defface piki-keyword-face
+  '((t (:inherit font-lock-keyword-face)))
+  "Face for Piki keyword texts.")
+
+(defface piki-reference-face
+  '((t (:inherit font-lock-reference-face)))
+  "Face for Piki reference texts.")
+
+(defun piki-font-lock--pre-matcher (limit)
+  (let (start end
+              start-tag-beg start-tag-end
+              end-tag-beg end-tag-end)
+    (cond
+     ((not (re-search-forward "^>|$" limit t))
+      nil)
+     (t
+      (setq start-tag-beg (match-beginning 0)
+            start-tag-end (match-end 0))
+      (setq start (point-at-bol))
       (cond
-       ((not (re-search-forward "^>|$" limit t))
-        nil)
+       ((re-search-forward "^|<$" nil t)
+        (setq end (point-at-eol))
+        (setq end-tag-beg (match-beginning 0)
+              end-tag-end (match-end 0)))
        (t
-        (setq start-tag-beg (match-beginning 0)
-              start-tag-end (match-end 0))
-        (setq start (point-at-bol))
-        (cond
-         ((re-search-forward "^|<$" nil t)
-          (setq end (point-at-eol))
-          (setq end-tag-beg (match-beginning 0)
-                end-tag-end (match-end 0)))
-         (t
-          (with-silent-modifications
-            (remove-text-properties (point) (point-max) '(fontified t)))
-          (goto-char (point-max))
-          (setq end (point-max))))
-        (set-match-data
-         (append
-          (list start end
-                start-tag-beg start-tag-end
-                (1+ start-tag-end) (if end-tag-beg (1- end-tag-beg) end))
-          (and end-tag-beg end-tag-end
-               (list end-tag-beg end-tag-end))))
-        t)))))
+        (with-silent-modifications
+          (remove-text-properties (point) (point-max) '(fontified t)))
+        (goto-char (point-max))
+        (setq end (point-max))))
+      (set-match-data
+       (append
+        (list start end
+              start-tag-beg start-tag-end
+              (1+ start-tag-end) (if end-tag-beg (1- end-tag-beg) end))
+        (and end-tag-beg end-tag-end
+             (list end-tag-beg end-tag-end))))
+      t))))
 
 (defvar piki-mode-map nil)
 
@@ -146,10 +157,10 @@
 
 (defvar piki-font-lock-keywords
   `(
-    (,(piki-font-lock--pre-matcher)
-     (1 font-lock-keyword-face)
+    (piki-font-lock--pre-matcher
+     (1 'piki-keyword-face)
      (2 'piki-verbatim-face)
-     (3 font-lock-keyword-face nil t))
+     (3 'piki-keyword-face nil t))
 
     ("^#.*" . font-lock-comment-face)
 
@@ -159,7 +170,7 @@
 
     ;; <ul> and <ol>
     ("^\\([-+]+\\)"
-     (1 font-lock-function-name-face))
+     (1 'piki-classname-face))
 
     ;; <table>
     ("^\\(|\\)\\(.*?\\)\\(|\\)$"
@@ -174,11 +185,11 @@
 
     ;; <dt>
     ("^\\(\\?.*\\)"
-     (1 font-lock-keyword-face))
+     (1 'piki-keyword-face))
 
     ;; <dd>
     ("^\\(!.*\\)"
-     (1 font-lock-keyword-face))
+     (1 'piki-keyword-face))
 
     ;; [url]
     (,(concat
@@ -195,10 +206,10 @@
        ;; end of bracket
        "\\(\\\]\\)"
        )
-     (1 font-lock-keyword-face)
-     (2 font-lock-reference-face)
+     (1 'piki-keyword-face)
+     (2 'piki-reference-face)
      (3 'piki-link-face)
-     (4 font-lock-keyword-face))
+     (4 'piki-keyword-face))
 
     ;; <img>
     (,(concat
@@ -211,8 +222,8 @@
        "\\([^s\t\n]+\\)"
        "\\)?"
        )
-     (1 font-lock-keyword-face)
-     (2 font-lock-reference-face nil t)
+     (1 'piki-keyword-face)
+     (2 'piki-reference-face nil t)
      (3 'piki-link-face nil t))
 
     (,(concat
@@ -228,8 +239,8 @@
        "\\([^\s\t\n]+\\)"
        "\\)?"
        )
-     (1 font-lock-keyword-face)
-     (2 font-lock-reference-face nil t)
+     (1 'piki-keyword-face)
+     (2 'piki-reference-face nil t)
      (3 'piki-link-face nil t)
      (4 'piki-link-face nil t))
            
@@ -241,10 +252,10 @@
 
     ;; <div>
     ("^\\({\\)\\(.*\\)"
-     (1 font-lock-keyword-face)
-     (2 font-lock-function-name-face))
+     (1 'piki-keyword-face)
+     (2 'piki-classname-face))
     ("^\\(}\\)"
-     (1 font-lock-keyword-face))
+     (1 'piki-keyword-face))
 
     )
   "Default expressions to highlight in Piki modes.")
@@ -258,7 +269,6 @@
   (set (make-local-variable 'font-lock-defaults)
        '(piki-font-lock-keywords t t))
   (set (make-local-variable 'font-lock-multiline) t)
-  (add-hook 'after-change-functions 'piki-after-change-buffer nil t)
   (setq major-mode 'piki-mode)
   (setq mode-name "Piki")
   (set (make-local-variable 'comment-start) "#")
