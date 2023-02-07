@@ -42,6 +42,10 @@
 
 ;;; Code:
 
+(defgroup piki-mode ()
+  "Edit mode for piki processor"
+  :group 'applications)
+
 (defcustom piki-mode-hook nil
   "Hook called in `piki-mode'."
   :group 'piki
@@ -49,66 +53,80 @@
 
 (defface piki-header-1-face
   '((t (:weight bold :height 1.3 :inherit variable-pitch)))
-  "Face for Piki headers of level 1.")
+  "Face for Piki headers of level 1."
+  :group 'piki-mode)
 
 (defface piki-header-2-face
   '((t (:weight bold :height 1.2 :inherit variable-pitch)))
-  "Face for Piki headers of level 2.")
+  "Face for Piki headers of level 2."
+  :group 'piki-mode)
 
 (defface piki-header-3-face
   '((t (:weight bold :height 1.1 :inherit variable-pitch)))
-  "Face for Piki headers of level 3.")
+  "Face for Piki headers of level 3."
+  :group 'piki-mode)
 
 (defface piki-header-4-face
   '((t (:weight bold :height 1.0 :inherit variable-pitch)))
-  "Face for Piki headers of level 4.")
+  "Face for Piki headers of level 4."
+  :group 'piki-mode)
 
 (defface piki-header-5-face
   '((t (:weight bold :height 0.9 :inherit variable-pitch)))
-  "Face for Piki headers of level 5 and below.")
+  "Face for Piki headers of level 5 and below."
+  :group 'piki-mode)
 
 (defface piki-link-face
   '((((class color) (background light)) (:foreground "#551a8b" :bold t))
     (((class color) (background dark)) (:foreground "cyan" :bold t))
     (t (:bold t)))
-  "Face for Piki links.")
+  "Face for Piki links."
+  :group 'piki-mode)
 
 (defface piki-table-border-face
   '((((class color)) (:foreground "blue4"))
     (t (:bold t)))
-  "Face for Piki table border.")
+  "Face for Piki table border."
+  :group 'piki-mode)
 
 (defface piki-table-rule-face
   '((((class color)) (:foreground "skyblue4"))
     (t (:bold t)))
-  "Face for Piki table border.")
+  "Face for Piki table border."
+  :group 'piki-mode)
 
 (defface piki-verbatim-face
   '((((class color) (background light)) (:foreground "OliveDrab"))
     (((class color) (background dark)) (:foreground "LightSalmon"))
     (((type tty) (class color)) (:foreground "green"))
     (t (:italic t)))
-  "Face for Piki verbatim texts.")
+  "Face for Piki verbatim texts."
+  :group 'piki-mode)
 
 (defface piki-bold-face
   '((t (:bold t)))
-  "Face for Piki bold texts.")
+  "Face for Piki bold texts."
+  :group 'piki-mode)
 
 (defface piki-italic-face
   '((t (:italic t)))
-  "Face for Piki italic texts.")
+  "Face for Piki italic texts."
+  :group 'piki-mode)
 
 (defface piki-classname-face
   '((t (:inherit font-lock-function-name-face)))
-  "Face for Piki classname texts.")
+  "Face for Piki classname texts."
+  :group 'piki-mode)
 
 (defface piki-keyword-face
   '((t (:inherit font-lock-keyword-face)))
-  "Face for Piki keyword texts.")
+  "Face for Piki keyword texts."
+  :group 'piki-mode)
 
 (defface piki-reference-face
   '((t (:inherit font-lock-reference-face)))
-  "Face for Piki reference texts.")
+  "Face for Piki reference texts."
+  :group 'piki-mode)
 
 (defun piki-font-lock--pre-matcher (limit)
   (let (start end
@@ -141,9 +159,6 @@
       t))))
 
 (defvar piki-mode-map nil)
-
-(defun piki--re-title ()
-  )
 
 (defconst piki--re-title
   "\\(\\(?:\"\\(?:\\\\\"\\|[^\"]\\)+\"\\)\\|[^ \t\n]+\\)")
@@ -265,7 +280,6 @@
   "Major mode to edit and commit Piki page.
 
 \\{piki-mode-map}"
-  (interactive)
   (set (make-local-variable 'font-lock-defaults)
        '(piki-font-lock-keywords t t))
   (set (make-local-variable 'font-lock-multiline) t)
