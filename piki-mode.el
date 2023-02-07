@@ -21,22 +21,22 @@
 ;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
-;; 
+;;
 ;; TODO about piki
 ;; copy from wiliki-mode.el
-;; 
+;;
 ;; piki
 ;; * footnote <a href="#name" title=contents>
 ;;    like hatena?
 ;;    Text (((footnote contents))) ->
 ;;  -> Text<a href="#footnote-1" title="footnote contents">*1</a>
 
-;; * strong, em 
+;; * strong, em
 ;;  '''strong''' ''em''
 
 ;; * macro ${[A-Z]+} or $[A-Z]+
 ;;  like following.
-;;   piki -MMACRO=VALUE template index.piki 
+;;   piki -MMACRO=VALUE template index.piki
 
 ;; * line continuation like shell script.
 
@@ -258,7 +258,7 @@
      (2 'piki-reference-face nil t)
      (3 'piki-link-face nil t)
      (4 'piki-link-face nil t))
-           
+
     ;; <h2>, <h3>, <h4>, ...
     ("^\\(\\*+\\).*"
      (0 (let* ((len (- (match-end 1) (match-beginning 1)))
